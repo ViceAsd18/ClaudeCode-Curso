@@ -22,4 +22,6 @@ All logic lives in `game.js`, loaded by `index.html` via a plain `<script>` (no 
 - **Tuning data**: asteroid size tables `RADII`, `SPEEDS`, `POINTS` are indexed by size 1-3 (index 0 unused). Splitting goes size 3 -> 2 -> 1. Collisions are circle-based (`dist`); ship-vs-asteroid uses `a.radius * 0.82`.
 - Level clear (`asteroids.length === 0`) calls `nextLevel()`, which spawns `3 + level` large asteroids outside a safe radius around the center.
 
-The README mentions power-ups and a "shooting star" asteroid type; these are not implemented in `game.js`.
+- **Power-up Disparo Triple**: class `PowerUp` drops once per level (`powerUpSpawned`, reset in `nextLevel()`): random (`POWERUP_CHANCE`) when a bullet destroys an asteroid, forced when 2 or fewer asteroids remain so every level gets one. Picking it up sets global `tripleShotTimer` (`TRIPLE_DURATION` = 5s); `Ship.tryShoot(triple)` then fires 3 bullets fanned by `TRIPLE_SPREAD`. Timer resets on ship death.
+
+The README mentions a "shooting star" asteroid type; it is not implemented in `game.js`.
