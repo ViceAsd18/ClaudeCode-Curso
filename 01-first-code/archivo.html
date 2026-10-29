@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Contador</title>
+<style>
+body { background: #ffe4ec; color: #222222; }
+button { background: #333333; color: #ffffff; border: 1px solid #888888; }
+</style>
+</head>
+<body>
+<h1 id="n">0</h1>
+<button onclick="cambiar(1)">+</button>
+<button onclick="cambiar(-1)">-</button>
+<script>
+var c = 0;
+function cambiar(d) {
+  c += d;
+  document.getElementById("n").textContent = c;
+}
+</script>
+</body>
+</html>
