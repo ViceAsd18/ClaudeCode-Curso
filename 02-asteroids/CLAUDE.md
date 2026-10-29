@@ -23,5 +23,6 @@ All logic lives in `game.js`, loaded by `index.html` via a plain `<script>` (no 
 - Level clear (`asteroids.length === 0`) calls `nextLevel()`, which spawns `3 + level` large asteroids outside a safe radius around the center.
 
 - **Power-up Disparo Triple**: class `PowerUp` drops once per level (`powerUpSpawned`, reset in `nextLevel()`): random (`POWERUP_CHANCE`) when a bullet destroys an asteroid, forced when 2 or fewer asteroids remain so every level gets one. Picking it up sets global `tripleShotTimer` (`TRIPLE_DURATION` = 5s); `Ship.tryShoot(triple)` then fires 3 bullets fanned by `TRIPLE_SPREAD`. Timer resets on ship death.
+- **Power-up Escudo**: `PowerUp` has a `type` (`'triple'` | `'shield'`, random 50/50 on spawn; still one power-up per level). Picking up a shield sets `shieldTimer` (`SHIELD_DURATION` = 5s, reset on ship death). While active, the ship collision radius becomes `SHIELD_RADIUS`; the first asteroid hit goes through `destroyAsteroid(a)` (score + explosion + split, same as a bullet), clears the shield and gives `ship.invincible = 1`. Drawn in `Ship.draw()`, HUD line `ESCUDO Ns`.
 
 The README mentions a "shooting star" asteroid type; it is not implemented in `game.js`.
