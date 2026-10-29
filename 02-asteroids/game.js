@@ -132,15 +132,20 @@ const SHIELD_COLOR    = '#6f6';
 const SLOW_DURATION   = 6;     // segundos
 const SLOW_FACTOR     = 0.5;   // multiplicador de velocidad de los asteroides
 const SLOW_COLOR      = '#fc4';
+const HYPER_DURATION  = 8;     // segundos
+const HYPER_THRUST    = 2.6;   // multiplicador de aceleración
+const HYPER_MAX_SPEED = 620;   // px/s, velocidad máxima con hiperpropulsión
+const HYPER_COLOR     = '#f84';
 const NOVA_CHANCE     = 0.03;  // probabilidad rara por asteroide destruido (aparte del power-up del nivel)
 const NOVA_COLOR      = '#f4f';
 const NOVA_FLASH      = 0.5;   // segundos de destello al detonar
 
-const POWERUP_TYPES = ['triple', 'shield', 'slow'];
+const POWERUP_TYPES = ['triple', 'shield', 'slow', 'hyper'];
 const POWERUP_STYLE = {
   triple: { color: '#4cf',        label: '3' },
   shield: { color: SHIELD_COLOR,  label: 'E' },
   slow:   { color: SLOW_COLOR,    label: 'S' },
+  hyper:  { color: HYPER_COLOR,   label: 'H' },
   nova:   { color: NOVA_COLOR,    label: 'N' },
 };
 
@@ -148,7 +153,7 @@ class PowerUp {
   constructor(x, y, type) {
     this.x = x;
     this.y = y;
-    this.type = type;  // 'triple' | 'shield' | 'slow' | 'nova'
+    this.type = type;  // 'triple' | 'shield' | 'slow' | 'hyper' | 'nova'
     const angle = rand(0, Math.PI * 2);
     this.vx = Math.cos(angle) * 30;
     this.vy = Math.sin(angle) * 30;
@@ -207,18 +212,33 @@ class Ship {
     const ROT   = 3.5;   // rad/s
     const THRUST = 260;  // px/s²
     const DRAG   = 0.987;
+    const MAX_SPEED = 340;  // px/s, ≈ velocidad terminal normal
+    const hyper = hyperTimer > 0;
 
     if (keys['ArrowLeft'])  this.angle -= ROT * dt;
     if (keys['ArrowRight']) this.angle += ROT * dt;
 
     this.thrusting = !!keys['ArrowUp'];
     if (this.thrusting) {
-      this.vx += Math.cos(this.angle) * THRUST * dt;
-      this.vy += Math.sin(this.angle) * THRUST * dt;
+      const thrust = THRUST * (hyper ? HYPER_THRUST : 1);
+      this.vx += Math.cos(this.angle) * thrust * dt;
+      this.vy += Math.sin(this.angle) * thrust * dt;
     }
 
     this.vx *= DRAG;
     this.vy *= DRAG;
+
+    const speed = Math.hypot(this.vx, this.vy);
+    if (hyper) {
+      if (speed > HYPER_MAX_SPEED) {
+        this.vx *= HYPER_MAX_SPEED / speed;
+        this.vy *= HYPER_MAX_SPEED / speed;
+      }
+    } else if (speed > MAX_SPEED) {
+      // Al acabar la hiperpropulsión, frena de forma suave hasta el tope normal
+      this.vx *= 0.97;
+      this.vy *= 0.97;
+    }
     this.x = wrap(this.x + this.vx * dt, W);
     this.y = wrap(this.y + this.vy * dt, H);
   }
@@ -260,11 +280,14 @@ class Ship {
 
     // Llama del propulsor
     if (this.thrusting && Math.random() > 0.35) {
+      // Hiperpropulsión: llama larga, parpadea durante el último segundo
+      const hyper = hyperTimer > 0;
+      const blink = hyperTimer < 1 && Math.floor(hyperTimer * 8) % 2 === 0;
       ctx.beginPath();
       ctx.moveTo(-8, -4);
-      ctx.lineTo(-8 - rand(6, 14), 0);
+      ctx.lineTo(-8 - (hyper ? rand(14, 26) : rand(6, 14)), 0);
       ctx.lineTo(-8,  4);
-      ctx.strokeStyle = 'rgba(255, 130, 0, 0.85)';
+      ctx.strokeStyle = hyper && !blink ? HYPER_COLOR : 'rgba(255, 130, 0, 0.85)';
       ctx.stroke();
     }
 
@@ -324,6 +347,7 @@ let powerUpSpawned;   // ya apareció en este nivel
 let tripleShotTimer;  // segundos restantes de disparo triple
 let shieldTimer;      // segundos restantes de escudo
 let slowTimer;        // segundos restantes de cámara lenta
+let hyperTimer;       // segundos restantes de hiperpropulsión
 let novaItem;         // ítem Bomba Nova en pantalla o null
 let novaSpawned;      // ya apareció una Bomba Nova en este nivel
 let hasNova;          // Bomba Nova guardada (máx. 1)
@@ -356,7 +380,8 @@ function initGame() {
   tripleShotTimer = 0;
   shieldTimer     = 0;
   slowTimer       = 0;
-  novaItem        = null;
+  hyperTimer      = 0;
+  novaItem       = null;
   novaSpawned     = false;
   hasNova         = false;
   novaFlash       = 0;
@@ -403,6 +428,7 @@ function killShip() {
   tripleShotTimer = 0;
   shieldTimer = 0;
   slowTimer = 0;
+  hyperTimer = 0;
   lives--;
   if (lives <= 0) {
     state = 'gameover';
@@ -449,6 +475,7 @@ function update(dt) {
   if (tripleShotTimer > 0) tripleShotTimer -= dt;
   if (shieldTimer > 0) shieldTimer -= dt;
   if (slowTimer > 0) slowTimer -= dt;
+  if (hyperTimer > 0) hyperTimer -= dt;
   if (novaFlash > 0) novaFlash -= dt;
   if (powerUp) {
     powerUp.update(dt);
@@ -496,6 +523,7 @@ function update(dt) {
   if (powerUp && dist(ship, powerUp) < ship.radius + powerUp.radius) {
     if (powerUp.type === 'shield') shieldTimer = SHIELD_DURATION;
     else if (powerUp.type === 'slow') slowTimer = SLOW_DURATION;
+    else if (powerUp.type === 'hyper') hyperTimer = HYPER_DURATION;
     else tripleShotTimer = TRIPLE_DURATION;
     powerUp = null;
   }
@@ -576,6 +604,13 @@ function drawHUD() {
     ctx.textAlign = 'left';
     const row = (tripleShotTimer > 0 ? 1 : 0) + (shieldTimer > 0 ? 1 : 0);
     ctx.fillText(`LENTO ${Math.ceil(slowTimer)}s`, 14, 46 + row * 20);
+  }
+
+  if (hyperTimer > 0) {
+    ctx.fillStyle = HYPER_COLOR;
+    ctx.textAlign = 'left';
+    const row = (tripleShotTimer > 0 ? 1 : 0) + (shieldTimer > 0 ? 1 : 0) + (slowTimer > 0 ? 1 : 0);
+    ctx.fillText(`HIPER ${Math.ceil(hyperTimer)}s`, 14, 46 + row * 20);
   }
 
   if (hasNova) {
