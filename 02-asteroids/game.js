@@ -129,12 +129,22 @@ const TRIPLE_SPREAD   = 0.22;  // radianes entre balas
 const SHIELD_DURATION = 5;     // segundos
 const SHIELD_RADIUS   = 22;    // radio del círculo de energía
 const SHIELD_COLOR    = '#6f6';
+const SLOW_DURATION   = 6;     // segundos
+const SLOW_FACTOR     = 0.5;   // multiplicador de velocidad de los asteroides
+const SLOW_COLOR      = '#fc4';
+
+const POWERUP_TYPES = ['triple', 'shield', 'slow'];
+const POWERUP_STYLE = {
+  triple: { color: '#4cf',        label: '3' },
+  shield: { color: SHIELD_COLOR,  label: 'E' },
+  slow:   { color: SLOW_COLOR,    label: 'S' },
+};
 
 class PowerUp {
   constructor(x, y, type) {
     this.x = x;
     this.y = y;
-    this.type = type;  // 'triple' | 'shield'
+    this.type = type;  // 'triple' | 'shield' | 'slow'
     const angle = rand(0, Math.PI * 2);
     this.vx = Math.cos(angle) * 30;
     this.vy = Math.sin(angle) * 30;
@@ -153,7 +163,7 @@ class PowerUp {
   draw() {
     // Parpadeo cuando está por expirar
     if (this.ttl < 2 && Math.floor(this.ttl * 6) % 2 === 0) return;
-    const color = this.type === 'shield' ? SHIELD_COLOR : '#4cf';
+    const color = POWERUP_STYLE[this.type].color;
     ctx.strokeStyle = color;
     ctx.fillStyle   = color;
     ctx.lineWidth   = 1.5;
@@ -163,7 +173,7 @@ class PowerUp {
     ctx.font = 'bold 14px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(this.type === 'shield' ? 'E' : '3', this.x, this.y + 1);
+    ctx.fillText(POWERUP_STYLE[this.type].label, this.x, this.y + 1);
     ctx.textBaseline = 'alphabetic';
   }
 }
@@ -309,6 +319,7 @@ let powerUp;          // PowerUp en pantalla o null
 let powerUpSpawned;   // ya apareció en este nivel
 let tripleShotTimer;  // segundos restantes de disparo triple
 let shieldTimer;      // segundos restantes de escudo
+let slowTimer;        // segundos restantes de cámara lenta
 let state;     // 'playing' | 'dead' | 'gameover'
 let deadTimer;
 
@@ -336,6 +347,7 @@ function initGame() {
   powerUpSpawned  = false;
   tripleShotTimer = 0;
   shieldTimer     = 0;
+  slowTimer       = 0;
   state  = 'playing';
   spawnAsteroids(4);
 }
@@ -366,6 +378,7 @@ function killShip() {
   ship.dead = true;
   tripleShotTimer = 0;
   shieldTimer = 0;
+  slowTimer = 0;
   lives--;
   if (lives <= 0) {
     state = 'gameover';
@@ -404,6 +417,7 @@ function update(dt) {
 
   if (tripleShotTimer > 0) tripleShotTimer -= dt;
   if (shieldTimer > 0) shieldTimer -= dt;
+  if (slowTimer > 0) slowTimer -= dt;
   if (powerUp) {
     powerUp.update(dt);
     if (powerUp.dead) powerUp = null;
@@ -411,7 +425,8 @@ function update(dt) {
 
   ship.update(dt);
   bullets.forEach(b => b.update(dt));
-  asteroids.forEach(a => a.update(dt));
+  const asteroidDt = slowTimer > 0 ? dt * SLOW_FACTOR : dt;
+  asteroids.forEach(a => a.update(asteroidDt));
   particles.forEach(p => p.update(dt));
 
   bullets   = bullets.filter(b => !b.dead);
@@ -427,7 +442,7 @@ function update(dt) {
         // Garantiza al menos uno por nivel: si quedan <=2 asteroides, se fuerza
         const restantes = asteroids.filter(x => !x.dead).length + newAsteroids.length;
         if (!powerUpSpawned && (restantes <= 2 || Math.random() < POWERUP_CHANCE)) {
-          powerUp = new PowerUp(a.x, a.y, Math.random() < 0.5 ? 'triple' : 'shield');
+          powerUp = new PowerUp(a.x, a.y, POWERUP_TYPES[randInt(0, POWERUP_TYPES.length - 1)]);
           powerUpSpawned = true;
         }
       }
@@ -439,6 +454,7 @@ function update(dt) {
   // Nave vs power-up
   if (powerUp && dist(ship, powerUp) < ship.radius + powerUp.radius) {
     if (powerUp.type === 'shield') shieldTimer = SHIELD_DURATION;
+    else if (powerUp.type === 'slow') slowTimer = SLOW_DURATION;
     else tripleShotTimer = TRIPLE_DURATION;
     powerUp = null;
   }
@@ -506,6 +522,13 @@ function drawHUD() {
     ctx.fillStyle = SHIELD_COLOR;
     ctx.textAlign = 'left';
     ctx.fillText(`ESCUDO ${Math.ceil(shieldTimer)}s`, 14, tripleShotTimer > 0 ? 66 : 46);
+  }
+
+  if (slowTimer > 0) {
+    ctx.fillStyle = SLOW_COLOR;
+    ctx.textAlign = 'left';
+    const row = (tripleShotTimer > 0 ? 1 : 0) + (shieldTimer > 0 ? 1 : 0);
+    ctx.fillText(`LENTO ${Math.ceil(slowTimer)}s`, 14, 46 + row * 20);
   }
 }
 
